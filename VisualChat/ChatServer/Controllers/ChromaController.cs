@@ -16,9 +16,9 @@ namespace ChatServer.Controllers
         /// <param name="prompt"></param>
         /// <returns></returns>
         [HttpGet("query/{userId}")]
-        public IActionResult Query(string userId, string prompt)
+        public IActionResult QueryAsync(string userId, string prompt)
         {
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
         }
     }
 }

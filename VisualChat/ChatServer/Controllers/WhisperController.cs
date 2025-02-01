@@ -4,7 +4,7 @@ using Whisper.net;
 using NAudio.Wave;
 using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
-using OllamaSharp.Models.Chat;
+using System.Text;
 
 namespace ChatServer.Controllers
 {
@@ -20,7 +20,7 @@ namespace ChatServer.Controllers
         /// <param name="userId"></param>
         /// <returns></returns>
         [HttpGet("record/{userId}")]
-        public IActionResult Record(string userId)
+        public IActionResult RecordAsync(string userId)
         {
             const string wavFileName = "voice.wav";
             string modelFileName = $"{Directory.GetCurrentDirectory()}\\ggml-base.bin";
@@ -52,7 +52,7 @@ namespace ChatServer.Controllers
                     }
                     finally
                     {
-                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = 200, status = "Completed", details = messsage });
+                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = 200, status = "Completed", content = messsage });
                     }
                 })
                 .Build();
@@ -86,10 +86,25 @@ namespace ChatServer.Controllers
             catch (Exception e)
             {
                 Trace.WriteLine(e.Message);
-                return StatusCode(500, new { result = "Failed", details = e.Message });   // 500 Internal Server Error
+                return StatusCode(500, new { result = "Failed", content = e.Message });   // 500 Internal Server Error
             }
 
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
+        }
+
+        /// <summary>
+        /// Record the voice and send the result to the user.
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        [HttpGet("test/{userId}")]
+        public async Task<IActionResult> TestAsnyc(string userId)
+        {
+            var jsonContent = new StringContent("{\"filePath\": \"Hello from C# client!\"}", Encoding.UTF8, "application/json");
+            HttpResponseMessage postResponse = await _ragService._whisperClient.PostAsync("http://localhost:5000/api/faster-whisper/transcribe", jsonContent);
+            string postResponseBody = await postResponse.Content.ReadAsStringAsync();
+            Trace.WriteLine("POST Response: " + postResponseBody);
+            return Ok(new { result = "Accept", content = postResponseBody });
         }
     }
 }

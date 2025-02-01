@@ -29,7 +29,7 @@ namespace VisualChat
 
             try
             {
-                const string url = "http://localhost:5028/api/Ollama/pull/1?model=phi3";
+                const string url = "http://localhost:5028/api/Whisper/test/1";
                 response = await _client.GetStringAsync(url);
             }
             catch (Exception ex)

@@ -14,6 +14,7 @@ namespace ChatServer
 
         public OllamaApiClient _ollamaClient { get; private set; }
         public ChromaClient _chromaClient { get; private set; }
+        public HttpClient _whisperClient { get; private set; }
 
         public RAGService()
         {
@@ -53,6 +54,15 @@ namespace ChatServer
                 }
 
                 // Start the ChromaDB process
+            }
+
+            try
+            {
+                _whisperClient = new HttpClient();
+            }
+            catch (Exception e)
+            {
+                Trace.WriteLine($"Error: {e.Message}");
             }
         }
 

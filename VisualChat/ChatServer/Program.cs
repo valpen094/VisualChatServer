@@ -38,7 +38,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.UseCors("AllowAll");
-// app.MapHub<EventHub>("/eventHub");
 
 app.UseRouting();
 app.UseEndpoints(endpoints =>

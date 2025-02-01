@@ -18,7 +18,7 @@ namespace ChatServer.Controllers
         /// <param name="model"></param>
         /// <returns></returns>
         [HttpGet("pull/{userId}")]
-        public IActionResult Pull(string userId, string model)
+        public IActionResult PullAsync(string userId, string model)
         {
             string message = string.Empty;
 
@@ -45,13 +45,13 @@ namespace ChatServer.Controllers
                         name = "ollama/pull",
                         errorcode = 200,
                         status = "",
-                        details = "",
+                        content = "",
                     };
 
                     try
                     {
                         //await _ragService.Clients.Client(userId).SendAsync("ReceiveResult", response);
-                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/pull", errorcode = 200, status = "Completed", details = message });
+                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/pull", errorcode = 200, status = "Completed", content = message });
                         Trace.WriteLine("[Server] Sending completion message.");
                     }
                     catch (Exception ex)
@@ -63,7 +63,7 @@ namespace ChatServer.Controllers
 
             }).ConfigureAwait(false);
 
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
         }
 
         /// <summary>
@@ -73,7 +73,7 @@ namespace ChatServer.Controllers
         /// <param name="prompt"></param>
         /// <returns></returns>
         [HttpGet("chat/{userId}")]
-        public IActionResult Chat(string userId, string prompt)
+        public IActionResult ChatAsync(string userId, string prompt)
         {
             List<float[]>? embeddings = null;
 
@@ -113,7 +113,7 @@ namespace ChatServer.Controllers
                 {
                     try
                     {
-                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/chat", errorcode = 200, status = "Completed", details = message });
+                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/chat", errorcode = 200, status = "Completed", content = message });
                         Trace.WriteLine("[Server] Sending completion message.");
                     }
                     catch (Exception ex)
@@ -125,7 +125,7 @@ namespace ChatServer.Controllers
 
             }, token).ConfigureAwait(false);
 
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
         }
 
         /// <summary>
@@ -135,7 +135,7 @@ namespace ChatServer.Controllers
         /// <param name="prompt"></param>
         /// <returns></returns>
         [HttpGet("generate/{userId}")]
-        public IActionResult Generate(string userId, string prompt)
+        public IActionResult GenerateAsync(string userId, string prompt)
         {
             string message = string.Empty;
             string request = prompt;
@@ -168,7 +168,7 @@ namespace ChatServer.Controllers
                 {
                     try
                     {
-                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/generate", errorcode = 200, status = "Completed", details = message });
+                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/generate", errorcode = 200, status = "Completed", content = message });
                         Trace.WriteLine("[Server] Sending completion message.");
                     }
                     catch (Exception ex)
@@ -180,7 +180,7 @@ namespace ChatServer.Controllers
 
             }, token).ConfigureAwait(false);
 
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
         }
 
         /// <summary>
@@ -190,7 +190,7 @@ namespace ChatServer.Controllers
         /// <param name="prompt"></param>
         /// <returns></returns>
         [HttpGet("embed/{userId}")]
-        public IActionResult Embed(string userId, string prompt)
+        public IActionResult EmbedAsync(string userId, string prompt)
         {
             object? message = null;
 
@@ -219,7 +219,7 @@ namespace ChatServer.Controllers
                             message = new List<float[]>();
                         }
 
-                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/embed", errorcode = 200, status = "Completed", details = message });
+                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/embed", errorcode = 200, status = "Completed", content = message });
                         Trace.WriteLine("[Server] Sending completion message.");
                     }
                     catch (Exception ex)
@@ -231,7 +231,7 @@ namespace ChatServer.Controllers
 
             }, token).ConfigureAwait(false);
 
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
         }
 
         /// <summary>
@@ -244,7 +244,7 @@ namespace ChatServer.Controllers
         public IActionResult SelectModel(string userId, string model)
         {
             _ragService._ollamaClient.SelectedModel = model;
-            return Ok(new { result = "Accept", details = string.Empty });
+            return Ok(new { result = "Accept", content = string.Empty });
         }
     }
 }
