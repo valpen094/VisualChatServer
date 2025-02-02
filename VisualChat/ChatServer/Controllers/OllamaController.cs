@@ -24,8 +24,7 @@ namespace ChatServer.Controllers
 
             // fire-and-forget
             _ = Task.Run(async () =>
-            {
-                
+            {     
                 try
                 {
                     await foreach (var status in _ragService._ollamaClient.PullModelAsync(model))

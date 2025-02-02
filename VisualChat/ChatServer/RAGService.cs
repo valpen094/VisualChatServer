@@ -2,6 +2,7 @@
 using ChromaDB.Client;
 using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
+using System.Net.Sockets;
 
 namespace ChatServer
 {
@@ -9,12 +10,14 @@ namespace ChatServer
     {
         private const string OllamaUri = "http://localhost:11434";
         private const string ChromaUri = "http://localhost:8000/api/v1/";
+        public readonly Tuple<string, int> WhisperUri = new Tuple<string, int>("localhost", 5023);
         private const string OllamaProcessName = "ollama";
         private const string ChromaProcessName = "chroma";
 
         public OllamaApiClient _ollamaClient { get; private set; }
         public ChromaClient _chromaClient { get; private set; }
-        public HttpClient _whisperClient { get; private set; }
+        public TcpClient _whisperClient { get; set; }
+        public NetworkStream _stream { get; set; }
 
         public RAGService()
         {
@@ -58,7 +61,8 @@ namespace ChatServer
 
             try
             {
-                _whisperClient = new HttpClient();
+                _whisperClient = new TcpClient(WhisperUri.Item1, WhisperUri.Item2);
+                _stream = _whisperClient.GetStream();
             }
             catch (Exception e)
             {

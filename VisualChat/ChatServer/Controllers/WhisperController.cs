@@ -1,10 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Whisper.net.Logger;
-using Whisper.net;
-using NAudio.Wave;
-using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
 using System.Text;
+using System.Net.Sockets;
 
 namespace ChatServer.Controllers
 {
@@ -15,78 +12,51 @@ namespace ChatServer.Controllers
         private readonly RAGService _ragService = ragService;
 
         /// <summary>
-        /// Record the voice and send the result to the user.
+        /// Open the faster-whisper_server.
         /// </summary>
-        /// <param name="userId"></param>
         /// <returns></returns>
-        [HttpGet("record/{userId}")]
-        public IActionResult RecordAsync(string userId)
+        [HttpGet("open/{userId}")]
+        public IActionResult Open()
         {
-            const string wavFileName = "voice.wav";
-            string modelFileName = $"{Directory.GetCurrentDirectory()}\\ggml-base.bin";
-            string messsage = string.Empty;
-
-            // Optional logging from the native library
-            using var whisperLogger = LogProvider.AddConsoleLogging(WhisperLogLevel.None);
-
-            // This section creates the whisperFactory object which is used to create the processor object.
-            using var whisperFactory = WhisperFactory.FromPath("ggml-base.bin");
-
-            // This section creates the processor object which is used to process the audio file, it uses language `auto` to detect the language of the audio file.
-            // It also sets the segment event handler, which is called every time a new segment is detected.
-            using var processor = whisperFactory.CreateBuilder()
-                .WithLanguage("auto")
-                .WithSegmentEventHandler(async (segment) =>
-                {
-                    // Get a text
-                    messsage = segment.Text;
-
-                    try
-                    {
-                        // Delete the audio file
-                        System.IO.File.Delete(wavFileName);
-                    }
-                    catch (Exception e)
-                    {
-                        Trace.WriteLine(e.Message);
-                    }
-                    finally
-                    {
-                        await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = 200, status = "Completed", content = messsage });
-                    }
-                })
-                .Build();
-
-            using (var waveIn = new WaveInEvent())
-            {
-                waveIn.WaveFormat = new WaveFormat(16000, 1);
-
-                using var waveWriter = new WaveFileWriter(wavFileName, waveIn.WaveFormat);
-                waveIn.DataAvailable += (sender, e) =>
-                {
-                    waveWriter.Write(e.Buffer, 0, e.BytesRecorded);
-                };
-
-                // Start recording
-                waveIn.StartRecording();
-
-                Trace.WriteLine("Please speak into the microphone.\r\n* recording... [Enter]");
-                Console.ReadLine();
-
-                // Stop recording
-                waveIn.StopRecording();
-            }
+            string message = string.Empty;
 
             try
             {
-                // This section processes the audio file and prints the results (start time, end time and text) to the console.
-                using var fileStream = System.IO.File.OpenRead(wavFileName);
-                processor.Process(fileStream);
+                _ragService._whisperClient = new TcpClient(_ragService.WhisperUri.Item1, _ragService.WhisperUri.Item2);
+                _ragService._stream = _ragService._whisperClient.GetStream();
             }
             catch (Exception e)
             {
-                Trace.WriteLine(e.Message);
-                return StatusCode(500, new { result = "Failed", content = e.Message });   // 500 Internal Server Error
+                Trace.WriteLine($"Error: {e.Message}");
+            }
+
+            return Ok(new { result = "Accept", content = message });
+        }
+
+        /// <summary>
+        /// Close the faster-whisper_server.
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("close/{userId}")]
+        public IActionResult Close()
+        {
+            string message = string.Empty;
+
+            try
+            {
+                // Send a message to the server.
+                byte[] data = Encoding.UTF8.GetBytes("close");
+                _ragService._stream.Write(data, 0, data.Length);
+                _ragService._whisperClient.Close();
+                _ragService._stream.Close();
+            }
+            catch (ObjectDisposedException)
+            {
+
+            }
+            catch (Exception e)
+            {
+                Trace.WriteLine($"Error: {e.Message}");
             }
 
             return Ok(new { result = "Accept", content = string.Empty });
@@ -97,14 +67,34 @@ namespace ChatServer.Controllers
         /// </summary>
         /// <param name="userId"></param>
         /// <returns></returns>
-        [HttpGet("test/{userId}")]
-        public async Task<IActionResult> TestAsnyc(string userId)
+        [HttpGet("record/{userId}")]
+        public IActionResult RecordAsync(string userId)
         {
-            var jsonContent = new StringContent("{\"filePath\": \"Hello from C# client!\"}", Encoding.UTF8, "application/json");
-            HttpResponseMessage postResponse = await _ragService._whisperClient.PostAsync("http://localhost:5000/api/faster-whisper/transcribe", jsonContent);
-            string postResponseBody = await postResponse.Content.ReadAsStringAsync();
-            Trace.WriteLine("POST Response: " + postResponseBody);
-            return Ok(new { result = "Accept", content = postResponseBody });
+            string message = string.Empty;
+
+            // fire-and-forget
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Send a message to the server.
+                    byte[] data = Encoding.UTF8.GetBytes("transcribe");
+                    _ragService._stream.Write(data, 0, data.Length);
+
+                    // Receive the response from the server.
+                    byte[] buffer = new byte[1024];
+                    int bytesRead = _ragService._stream.Read(buffer, 0, buffer.Length);
+                    message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    Trace.WriteLine("POST Response: " + message);
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine("Error: " + ex.Message);
+                }
+
+            }).ConfigureAwait(false);
+
+            return Ok(new { result = "Accept", content = string.Empty });
         }
     }
 }
