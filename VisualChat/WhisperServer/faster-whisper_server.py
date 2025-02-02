@@ -4,21 +4,55 @@ import datetime
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
+import time
 
+# Recording
 def record():
-    SAMPLE_RATE = 16000
-    DURATION = 5
+    SAMPLE_RATE = 44000
+    THRESHOLD = 500
+    SILENCE_DURATION = 1
     OUTPUT_FILE = "audio.wav"
 
+    audio_data = []
+    start_time = time.time()
+    recoginazed_voice = False
+
     print(f"{datetime.datetime.now()} Start recording.")
-    audio_data = sd.rec(int(SAMPLE_RATE * DURATION), samplerate=SAMPLE_RATE, channels=1, dtype=np.int16)
-    sd.wait()
-    print(f"{datetime.datetime.now()} Recording complete.")
+
+    while True:
+        # Get audio every 100ms
+        chunk = sd.rec(int(SAMPLE_RATE * 0.1), samplerate = SAMPLE_RATE, channels = 1, dtype = np.int16)
+        sd.wait()
+    
+        # Calculating volume
+        volume = np.abs(chunk).mean()
+
+        # Save a data (After initial recognition)
+        if recoginazed_voice:
+            audio_data.append(chunk)
+
+        # Silence detection
+        if volume < THRESHOLD:
+            if time.time() - start_time > SILENCE_DURATION:
+                if recoginazed_voice: # If there is no sound after recording starts, the condition will not be met.
+                    print(f"{datetime.datetime.now()} Stop recording.")
+                    break
+
+        else:
+            # Save a data (Initial recognition)
+            if recoginazed_voice is False:
+                audio_data.append(chunk)
+
+            start_time = time.time()
+            recoginazed_voice = True
+
+    audio_data = np.concatenate(audio_data, axis = 0)
 
     # Save the file
     wav.write(OUTPUT_FILE, SAMPLE_RATE, audio_data)
     return OUTPUT_FILE
 
+# Transcribe an audio file
 def transcribe(file_path):
     MODEL_SIZE = "small"
 
@@ -38,6 +72,7 @@ def transcribe(file_path):
         
     return message
 
+# Start the server
 def serve():
     HOST = "localhost"
     PORT = 5023
