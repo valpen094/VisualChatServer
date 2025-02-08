@@ -5,7 +5,7 @@ using System.Diagnostics;
 
 namespace ChatServer
 {
-    public class RAGService : Hub, IHostedService
+    public class RAGService : Hub
     {
         private Tuple<string, string> OllamaUri { get; set; } = new("localhost", "11434");
         private Tuple<string, string> ChromaUri { get; set; } = new("localhost", "8000");
@@ -19,25 +19,29 @@ namespace ChatServer
 
         public OllamaApiClient? OllamaClient { get; private set; }
         public ChromaClient? ChromaClient { get; private set; }
+        private HttpClient? ChromaHttpClient { get; set; }
         public ChromaCollectionClient? ChromaCollectionClient { get; private set; }
         public HttpClient? WhisperClient { get; private set; }
 
         /// <summary>
         /// Numeric Vector Data
         /// </summary>
-        public float[]? QueryEmbedding { get; private set; }
+        public float[]? QueryEmbedding { get; set; } = [0,0f, 1.1f, 2.2f, 3.3f, 4.4f,5.5f, 6.6f, 7.7f, 8.8f, 9.9f];
+
+        public RAGService()
+        {
+            Ollama();
+            Chroma(); 
+            Whisper();
+        }
 
         /// <summary>
         /// Start the service.
         /// </summary>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public Task StartAsync(CancellationToken cancellationToken)
+        public async Task<Task> StartAsync(CancellationToken cancellationToken)
         {
-            Ollama();       // Start Ollama process 
-            _ = Chroma();   // Start ChromaDB process
-            Whisper();      // Start faster-whisper process
-
             return Task.CompletedTask;
         }
 
@@ -130,7 +134,7 @@ namespace ChatServer
         /// <summary>
         /// Init ChromaDB.
         /// </summary>
-        private async Task Chroma()
+        private async void Chroma()
         {
             // Check if the ChromaDB process is running
             bool isRunning = Process.GetProcessesByName(ChromaProcessName).Length != 0;
@@ -145,7 +149,7 @@ namespace ChatServer
                     {
                         FileName = "cmd.exe",
                         Arguments = $"/c chroma.exe run --path \"..\\chromadb\" --host {ChromaUri.Item1} --port {ChromaUri.Item2}",
-                        CreateNoWindow = false, // true: not display window, false: display window
+                        CreateNoWindow = true, // true: not display window, false: display window
                         UseShellExecute = false
                     };
 
@@ -161,17 +165,17 @@ namespace ChatServer
             try
             {
                 // Initialize ChromaDB
-                string url = $"http://{ChromaUri.Item1}:{ChromaUri.Item2}/api/v1";
+                string url = $"http://{ChromaUri.Item1}:{ChromaUri.Item2}/api/v1/";
                 var options = new ChromaConfigurationOptions(url);
-                using var httpClient = new HttpClient();
+                ChromaHttpClient = new HttpClient();
 
                 Debug.WriteLine($"{DateTime.Now} Connecting to {url}...");
-                ChromaClient = new ChromaClient(options, httpClient);
+                ChromaClient = new ChromaClient(options, ChromaHttpClient);
                 Debug.WriteLine($"{DateTime.Now} Connected to {url}");
 
                 // Create or Get a collection
                 var collection = await ChromaClient.GetOrCreateCollection(ChromaCollectionName);
-                ChromaCollectionClient = new ChromaCollectionClient(collection, options, httpClient);
+                ChromaCollectionClient = new ChromaCollectionClient(collection, options, ChromaHttpClient);
                 Debug.WriteLine($"{DateTime.Now} Collection obtained.");
             }
             catch (Exception e)
@@ -186,10 +190,10 @@ namespace ChatServer
         private void Whisper()
         {
             // Check if the faster-whisper process is running
-            /*
             bool isRunning = Process.GetProcessesByName(WhisperProcessName).Length != 0;
             if (!isRunning)
             {
+                /*
                 Debug.WriteLine($"{DateTime.Now} There is not faster-whisper process.");
 
                 // Start the faster-whisper process
@@ -210,8 +214,8 @@ namespace ChatServer
                 {
                     Debug.WriteLine($"{DateTime.Now} Error: {ex.Message}");
                 }
+                */
             }
-            */
 
             try
             {

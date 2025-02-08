@@ -3,13 +3,14 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace VisualChat
 {
     public partial class MainWindow : Window
     {
+        public ObservableCollection<string> Apis { get; set; } = [];
+
         private readonly HttpClient _client = new HttpClient();
         private HubConnection? _connection;
 
@@ -20,16 +21,21 @@ namespace VisualChat
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            ApiComboBox.Items.Clear();
+            CategoryComboBox.SelectedIndex = 0;
+
             await ConnectToSignalR();
         }
 
         private async void OnRequestApi(object sender, RoutedEventArgs e)
         {
             string response = string.Empty;
+            string category = CategoryComboBox.Text;
+            string api = ApiComboBox.Text;
 
             try
             {
-                const string url = "http://localhost:5028/api/Whisper/test/1";
+                string url = $"http://localhost:5028/api/{category}/{api}/1";
                 response = await _client.GetStringAsync(url);
             }
             catch (Exception ex)
@@ -87,6 +93,34 @@ namespace VisualChat
             {
                 MessageBox.Show(ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void CategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            string selectedValue = (CategoryComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "";
+            if (selectedValue == null)
+            {
+                return;
+            }
+
+            List<string> categories = selectedValue switch
+            {
+                "Ollama" => ["pull", "chat", "generate", "embed", "select"],
+                "Chroma" => ["query"],
+                "Whisper" => ["record", "transcribe", "whisper"],
+                "General" => ["alive"],
+                _ => ["dummy"],
+            };
+
+            Apis.Clear();
+
+            foreach (var api in categories)
+            {
+                Apis.Add(api);
+            }
+
+            ApiComboBox.ItemsSource = Apis;
+            ApiComboBox.SelectedIndex = 0;
         }
     }
 }
