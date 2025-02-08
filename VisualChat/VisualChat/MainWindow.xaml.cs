@@ -11,7 +11,7 @@ namespace VisualChat
     public partial class MainWindow : Window
     {
         private readonly HttpClient _client = new HttpClient();
-        private HubConnection _connection;
+        private HubConnection? _connection;
 
         public MainWindow()
         {
@@ -61,7 +61,7 @@ namespace VisualChat
                 Dispatcher.Invoke(() =>
                 {
                     ChatTextBox.Text += $"{response}\n";
-                    Trace.WriteLine($"{response}");
+                    Debug.WriteLine($"{response}");
                 });
             });
 
@@ -72,7 +72,7 @@ namespace VisualChat
             }
             catch (Exception e)
             {
-                Trace.WriteLine($"SignalR connection failed: {e.Message}");
+                Debug.WriteLine($"SignalR connection failed: {e.Message}");
             }
         }
 

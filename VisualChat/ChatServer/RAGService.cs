@@ -5,80 +5,70 @@ using System.Diagnostics;
 
 namespace ChatServer
 {
-    public class RAGService : Hub
+    public class RAGService : Hub, IHostedService
     {
-        private const string OllamaUri = "http://localhost:11434";
-        private const string ChromaUri = "http://localhost:8000/api/v1";
-        private const string WhisperUri = "http://localhost:5023";
+        private Tuple<string, string> OllamaUri { get; set; } = new("localhost", "11434");
+        private Tuple<string, string> ChromaUri { get; set; } = new("localhost", "8000");
+        private Tuple<string, string> WhisperUri { get; set; } = new("localhost", "5023");
+
         private const string OllamaProcessName = "ollama";
         private const string ChromaProcessName = "chroma";
         private const string WhisperProcessName = "faster-whisper";
+        
+        private const string ChromaCollectionName = "docs";
 
-        public OllamaApiClient _ollamaClient { get; private set; }
-        public ChromaClient _chromaClient { get; private set; }
-        public HttpClient _whisperClient { get; private set; }
+        public OllamaApiClient? OllamaClient { get; private set; }
+        public ChromaClient? ChromaClient { get; private set; }
+        public ChromaCollectionClient? ChromaCollectionClient { get; private set; }
+        public HttpClient? WhisperClient { get; private set; }
 
-        public RAGService()
+        /// <summary>
+        /// Numeric Vector Data
+        /// </summary>
+        public float[]? QueryEmbedding { get; private set; }
+
+        /// <summary>
+        /// Start the service.
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        public Task StartAsync(CancellationToken cancellationToken)
         {
-            bool isRunnning;
+            Ollama();       // Start Ollama process 
+            _ = Chroma();   // Start ChromaDB process
+            Whisper();      // Start faster-whisper process
 
-            // Start Olaama process
-            try
-            {
-                Ollama();
-            }
-            catch (Exception e)
-            {
-                Trace.WriteLine($"Error: {e.Message}");
+            return Task.CompletedTask;
+        }
 
-                // Check if the Ollama process is running
-                isRunnning = Process.GetProcessesByName(OllamaProcessName).Length != 0;
-                if (!isRunnning)
+        /// <summary>
+        /// Stop the service.
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            void CloseServer(string processName) => Process.GetProcessesByName(processName).ToList().ForEach(process =>
+            {
+                Debug.WriteLine($"{DateTime.Now} {processName} is existed.");
+
+                try
                 {
-                    Trace.WriteLine("There is not Ollama process.");
+                    process.Kill();
+                    process.WaitForExit();
+                    Debug.WriteLine($"{DateTime.Now} Process {processName} terminated.");
                 }
-
-                // Start the Ollama process
-            }
-
-            // Start ChromaDB process
-            try
-            {
-                Chroma();
-            }
-            catch (Exception e)
-            {
-                Trace.WriteLine($"Error: {e.Message}");
-
-                // Check if the ChromaDB process is running
-                isRunnning = Process.GetProcessesByName(ChromaProcessName).Length != 0;
-                if (!isRunnning)
+                catch (Exception ex)
                 {
-                    Trace.WriteLine("There is not ChromaDB process.");
+                    Debug.WriteLine($"{DateTime.Now} Error: {ex.Message}");
                 }
+            });
 
-                // Start the ChromaDB process
-            }
+            CloseServer(OllamaProcessName);   // Kill the Ollama process.
+            CloseServer(ChromaProcessName);   // Kill the ChromaDB process.
+            CloseServer(WhisperProcessName);  // Kill the ChromaDB process.
 
-            // Start faster-whisper process
-            try
-            {
-                _whisperClient = new HttpClient { BaseAddress = new Uri(WhisperUri) };
-            }
-            catch (Exception e)
-            {
-                Trace.WriteLine($"Error: {e.Message}");
-
-                // Check if the faster-whisper process is running
-                /*
-                isRunnning = Process.GetProcessesByName(WhisperProcessName).Length != 0;
-                if (!isRunnning)
-                {
-                    Trace.WriteLine("There is not faster-whisper process.");
-                }
-                */
-                // Start the faster-whisper process
-            }
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -86,36 +76,155 @@ namespace ChatServer
         /// </summary>
         private async void Ollama()
         {
-            // Initialize Ollama
-            _ollamaClient = new OllamaApiClient(new Uri(OllamaUri));
+            // Check if the Ollama process is running
+            bool isRunning = Process.GetProcessesByName(OllamaProcessName).Length != 0;
+            if (!isRunning)
+            {
+                Debug.WriteLine($"{DateTime.Now} There is not Ollama process.");
 
-            // Pull and select models.
-            string response = string.Empty;
-            _ollamaClient.SelectedModel = "phi3";
+                // Start the Ollama process
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/c ollama serve",
+                        CreateNoWindow = true, // true: not display window, false: display window
+                        UseShellExecute = false
+                    };
+
+                    Process.Start(psi);
+                    Debug.WriteLine($"{DateTime.Now} Start the ollama server.");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{DateTime.Now} Error: {ex.Message}");
+                }
+            }
 
             try
             {
-                await foreach (var status in _ollamaClient.PullModelAsync(_ollamaClient.SelectedModel))
+                // Initialize Ollama
+                string url = $"http://{OllamaUri.Item1}:{OllamaUri.Item2}";
+
+                Debug.WriteLine($"{DateTime.Now} Connecting to {url}...");
+                OllamaClient = new OllamaApiClient(new Uri(url));
+                Debug.WriteLine($"{DateTime.Now} Connected to {url}");
+
+                // Pull and select models.
+                string response = string.Empty;
+                OllamaClient.SelectedModel = "phi3";
+
+                await foreach (var status in OllamaClient.PullModelAsync(OllamaClient.SelectedModel))
                 {
                     response += $"{status.Percent}% {status.Status}\r\n";
-                    Trace.WriteLine($"{status.Percent}% {status.Status}");
+                    Debug.WriteLine($"{DateTime.Now} {status.Percent}% {status.Status}");
                 }
             }
             catch (Exception e)
             {
-                Trace.WriteLine($"Error: {e.Message}");
+                Debug.WriteLine($"{DateTime.Now} Error: {e.Message}");
             }
         }
 
         /// <summary>
         /// Init ChromaDB.
         /// </summary>
-        private void Chroma()
+        private async Task Chroma()
         {
-            // Initialize ChromaDB
-            var options = new ChromaConfigurationOptions(ChromaUri);
-            using var httpClient = new HttpClient();
-            _chromaClient = new ChromaClient(options, httpClient);
+            // Check if the ChromaDB process is running
+            bool isRunning = Process.GetProcessesByName(ChromaProcessName).Length != 0;
+            if (!isRunning)
+            {
+                Debug.WriteLine($"{DateTime.Now} There is not ChromaDB process.");
+
+                // Start the ChromaDB process
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c chroma.exe run --path \"..\\chromadb\" --host {ChromaUri.Item1} --port {ChromaUri.Item2}",
+                        CreateNoWindow = false, // true: not display window, false: display window
+                        UseShellExecute = false
+                    };
+
+                    Process.Start(psi);
+                    Debug.WriteLine($"{DateTime.Now} Start the ChromaDB server.");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{DateTime.Now} Error: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                // Initialize ChromaDB
+                string url = $"http://{ChromaUri.Item1}:{ChromaUri.Item2}/api/v1";
+                var options = new ChromaConfigurationOptions(url);
+                using var httpClient = new HttpClient();
+
+                Debug.WriteLine($"{DateTime.Now} Connecting to {url}...");
+                ChromaClient = new ChromaClient(options, httpClient);
+                Debug.WriteLine($"{DateTime.Now} Connected to {url}");
+
+                // Create or Get a collection
+                var collection = await ChromaClient.GetOrCreateCollection(ChromaCollectionName);
+                ChromaCollectionClient = new ChromaCollectionClient(collection, options, httpClient);
+                Debug.WriteLine($"{DateTime.Now} Collection obtained.");
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine($"{DateTime.Now} Error: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Init faster-whisper.
+        /// </summary>
+        private void Whisper()
+        {
+            // Check if the faster-whisper process is running
+            /*
+            bool isRunning = Process.GetProcessesByName(WhisperProcessName).Length != 0;
+            if (!isRunning)
+            {
+                Debug.WriteLine($"{DateTime.Now} There is not faster-whisper process.");
+
+                // Start the faster-whisper process
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = "",
+                        Arguments = "",
+                        CreateNoWindow = false, // true: not display window, false: display window
+                        UseShellExecute = false
+                    };
+
+                    Process.Start(psi);
+                    Debug.WriteLine($"{DateTime.Now} Start the faster-whisper server.");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{DateTime.Now} Error: {ex.Message}");
+                }
+            }
+            */
+
+            try
+            {
+                string url = $"http://{WhisperUri.Item1}:{WhisperUri.Item2}";
+
+                Debug.WriteLine($"{DateTime.Now} Connecting to {url}...");
+                WhisperClient = new HttpClient { BaseAddress = new Uri(url) };
+                Debug.WriteLine($"{DateTime.Now} Connected to {url}");
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine($"{DateTime.Now} Error: {e.Message}");
+            }
         }
 
         /// <summary>
@@ -126,7 +235,7 @@ namespace ChatServer
         {
             string connectionId = Context.ConnectionId;
             await base.OnConnectedAsync();
-            Trace.WriteLine($"[Server] Client Connected: {connectionId}");
+            Debug.WriteLine($"{DateTime.Now} Client Connected: {connectionId}");
         }
 
         /// <summary>
@@ -138,7 +247,7 @@ namespace ChatServer
          {
             string connectionId = Context.ConnectionId;
             await base.OnDisconnectedAsync(exception);
-            Trace.WriteLine($"[Server] Client Disconnected: {connectionId}");
+            Debug.WriteLine($"{DateTime.Now} Client Disconnected: {connectionId}");
         }
     }
 }

@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Text;
 using System.Net.Sockets;
-using System;
 using Microsoft.AspNetCore.SignalR;
 using System.Text.Json;
 
@@ -32,6 +31,9 @@ namespace ChatServer.Controllers
             // fire-and-forget
             _ = Task.Run(async () =>
             {
+                string statusCode = string.Empty;
+                int statusCodeValue = 0;
+
                 try
                 {
                     const string url = "faster-whisper/api/record";
@@ -42,20 +44,23 @@ namespace ChatServer.Controllers
                     var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
                     // Send a message to the server.
-                    HttpResponseMessage response = await _ragService._whisperClient.PostAsync(url, content);
+                    HttpResponseMessage response = await _ragService.WhisperClient.PostAsync(url, content);
 
-                    var statusCode = response.StatusCode.ToString();
-                    int statusCodeValue = (int)response.StatusCode;
+                    statusCode = response.StatusCode.ToString();
+                    statusCodeValue = (int)response.StatusCode;
 
                     // Receive the response from the server.
                     message = await response.Content.ReadAsStringAsync();
-                    Trace.WriteLine($"{DateTime.Now.ToString()} POST Response: {message}");
-
-                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = statusCodeValue, status = statusCode, content = message });
+                    Debug.WriteLine($"{DateTime.Now} POST Response: {message}");
                 }
                 catch (Exception ex)
                 {
-                    Trace.WriteLine("Error: " + ex.Message);
+                    Debug.WriteLine("Error: " + ex.Message);
+                }
+                finally
+                {
+                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = statusCodeValue, status = statusCode, content = message });
+                    Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                 }
 
             }).ConfigureAwait(false);
@@ -76,6 +81,9 @@ namespace ChatServer.Controllers
             // fire-and-forget
             _ = Task.Run(async () =>
             {
+                string statusCode = string.Empty;
+                int statusCodeValue = 0;
+
                 try
                 {
                     const string url = "faster-whisper/api/transcribe";
@@ -86,14 +94,14 @@ namespace ChatServer.Controllers
                     var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
                     // Send a message to the server.
-                    HttpResponseMessage response = await _ragService._whisperClient.PostAsync(url, content);
+                    HttpResponseMessage response = await _ragService.WhisperClient.PostAsync(url, content);
 
-                    var statusCode = response.StatusCode.ToString();
-                    int statusCodeValue = (int)response.StatusCode;
+                    statusCode = response.StatusCode.ToString();
+                    statusCodeValue = (int)response.StatusCode;
 
                     // Receive the response from the server.
                     message = await response.Content.ReadAsStringAsync();
-                    Trace.WriteLine($"{DateTime.Now.ToString()} POST Response: {message}");
+                    Debug.WriteLine($"{DateTime.Now} POST Response: {message}");
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -102,22 +110,25 @@ namespace ChatServer.Controllers
                         {
                             foreach (var segment in result.segments)
                             {
-                                Trace.WriteLine($"{DateTime.Now.ToString()} [{segment.start}s - {segment.end}s] {segment.text}");
+                                Debug.WriteLine($"{DateTime.Now} [{segment.start}s - {segment.end}s] {segment.text}");
                             }
                         }
                     }
                     else
                     {
-                        Trace.WriteLine($"{DateTime.Now.ToString()} Error: {response.StatusCode}");
+                        Debug.WriteLine($"{DateTime.Now} Error: {response.StatusCode}");
                     }
-
-                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/transcribe", errorcode = statusCodeValue, status = statusCode, content = message });
                 }
                 catch (Exception ex)
                 {
-                    Trace.WriteLine("Error: " + ex.Message);
+                    Debug.WriteLine("Error: " + ex.Message);
                 }
-
+                finally
+                {
+                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/transcribe", errorcode = statusCodeValue, status = statusCode, content = message });
+                    Debug.WriteLine($"{DateTime.Now} Sending completion message.");
+                }
+                
             }).ConfigureAwait(false);
 
             return Ok(new { result = "Accept", content = string.Empty });
@@ -136,6 +147,9 @@ namespace ChatServer.Controllers
             // fire-and-forget
             _ = Task.Run(async () =>
             {
+                string statusCode = string.Empty;
+                int statusCodeValue = 0;
+
                 try
                 {
                     const string url = "faster-whisper/api/whisper";
@@ -146,14 +160,14 @@ namespace ChatServer.Controllers
                     var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
                     // Send a message to the server.
-                    HttpResponseMessage response = await _ragService._whisperClient.PostAsync(url, content);
+                    HttpResponseMessage response = await _ragService.WhisperClient.PostAsync(url, content);
 
-                    var statusCode = response.StatusCode.ToString();
-                    int statusCodeValue = (int)response.StatusCode;
+                    statusCode = response.StatusCode.ToString();
+                    statusCodeValue = (int)response.StatusCode;
 
                     // Receive the response from the server.
                     message = await response.Content.ReadAsStringAsync();
-                    Trace.WriteLine($"{DateTime.Now.ToString()} POST Response: {message}");
+                    Debug.WriteLine($"{DateTime.Now} POST Response: {message}");
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -162,20 +176,23 @@ namespace ChatServer.Controllers
                         {
                             foreach (var segment in result.segments)
                             {
-                                Trace.WriteLine($"{DateTime.Now.ToString()} [{segment.start}s - {segment.end}s] {segment.text}");
+                                Debug.WriteLine($"{DateTime.Now} [{segment.start}s - {segment.end}s] {segment.text}");
                             }
                         }
                     }
                     else
                     {
-                        Trace.WriteLine($"{DateTime.Now.ToString()} Error: {response.StatusCode}");
+                        Debug.WriteLine($"{DateTime.Now} Error: {response.StatusCode}");
                     }
-
-                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/whisper", errorcode = statusCodeValue, status = statusCode, content = message });
                 }
                 catch (Exception ex)
                 {
-                    Trace.WriteLine("Error: " + ex.Message);
+                    Debug.WriteLine("Error: " + ex.Message);
+                }
+                finally
+                {
+                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/whisper", errorcode = statusCodeValue, status = statusCode, content = message });
+                    Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                 }
 
             }).ConfigureAwait(false);
@@ -185,14 +202,14 @@ namespace ChatServer.Controllers
 
         public class TranscriptionResult
         {
-            public List<Segment> segments { get; set; }
+            public List<Segment>? segments { get; set; }
         }
 
         public class Segment
         {
             public float start { get; set; }
             public float end { get; set; }
-            public string text { get; set; }
+            public string? text { get; set; }
         }
     }
 }

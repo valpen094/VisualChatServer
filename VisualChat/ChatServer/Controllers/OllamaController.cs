@@ -27,10 +27,10 @@ namespace ChatServer.Controllers
             {     
                 try
                 {
-                    await foreach (var status in _ragService._ollamaClient.PullModelAsync(model))
+                    await foreach (var status in _ragService.OllamaClient.PullModelAsync(model))
                     {
                         message += $"{status.Percent}% {status.Status}\r\n";
-                        Trace.WriteLine($"{status.Percent}% {status.Status}");
+                        Debug.WriteLine($"{DateTime.Now} {status.Percent}% {status.Status}");
                     }
                 }
                 catch (Exception e)
@@ -51,12 +51,12 @@ namespace ChatServer.Controllers
                     {
                         //await _ragService.Clients.Client(userId).SendAsync("ReceiveResult", response);
                         await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/pull", errorcode = 200, status = "Completed", content = message });
-                        Trace.WriteLine("[Server] Sending completion message.");
+                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                     }
                     catch (Exception ex)
                     {
                         // If an error occurs when sending to the Hub.
-                        Trace.WriteLine($"Error sending to client: {ex.Message}");
+                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
                     }
                 }
 
@@ -88,13 +88,13 @@ namespace ChatServer.Controllers
                 try
                 {
                     // Embed a prompt.
-                    var result = await _ragService._ollamaClient.EmbedAsync(prompt);
+                    var result = await _ragService.OllamaClient.EmbedAsync(prompt);
                     embeddings = result.Embeddings;
 
                     // ChromaDBへクエリを投げる
                     // 
                     // Generate a response to a prompt.
-                    await foreach (var answerToken in new Chat(_ragService._ollamaClient).SendAsync(request))
+                    await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(request))
                     {
                         if (token.IsCancellationRequested)
                         {
@@ -106,19 +106,19 @@ namespace ChatServer.Controllers
                 }
                 catch (Exception e)
                 {
-                    message = $"Error: {e.Message}";
+                    message = $"{DateTime.Now} Error: {e.Message}";
                 }
                 finally
                 {
                     try
                     {
                         await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/chat", errorcode = 200, status = "Completed", content = message });
-                        Trace.WriteLine("[Server] Sending completion message.");
+                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                     }
                     catch (Exception ex)
                     {
                         // If an error occurs when sending to the Hub.
-                        Trace.WriteLine($"Error sending to client: {ex.Message}");
+                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
                     }
                 }
 
@@ -149,7 +149,7 @@ namespace ChatServer.Controllers
 
                 try
                 {
-                    await foreach (var answerToken in new Chat(_ragService._ollamaClient).SendAsync(request))
+                    await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(request))
                     {
                         if (token.IsCancellationRequested)
                         {
@@ -161,19 +161,19 @@ namespace ChatServer.Controllers
                 }
                 catch (Exception e)
                 {
-                    message = $"Error: {e.Message}";
+                    message = $"{DateTime.Now} Error: {e.Message}";
                 }
                 finally
                 {
                     try
                     {
                         await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/generate", errorcode = 200, status = "Completed", content = message });
-                        Trace.WriteLine("[Server] Sending completion message.");
+                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                     }
                     catch (Exception ex)
                     {
                         // If an error occurs when sending to the Hub.
-                        Trace.WriteLine($"Error sending to client: {ex.Message}");
+                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
                     }
                 }
 
@@ -201,7 +201,7 @@ namespace ChatServer.Controllers
             {
                 try
                 {
-                    var result = await _ragService._ollamaClient.EmbedAsync(prompt);
+                    var result = await _ragService.OllamaClient.EmbedAsync(prompt);
                     message = result.Embeddings;
                 }
                 catch (Exception e)
@@ -219,12 +219,12 @@ namespace ChatServer.Controllers
                         }
 
                         await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/embed", errorcode = 200, status = "Completed", content = message });
-                        Trace.WriteLine("[Server] Sending completion message.");
+                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                     }
                     catch (Exception ex)
                     {
                         // If an error occurs when sending to the Hub.
-                        Trace.WriteLine($"Error sending to client: {ex.Message}");
+                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
                     }
                 }
 
@@ -242,8 +242,8 @@ namespace ChatServer.Controllers
         [HttpGet("select/{userId}")]
         public IActionResult SelectModel(string userId, string model)
         {
-            _ragService._ollamaClient.SelectedModel = model;
-            return Ok(new { result = "Accept", content = string.Empty });
+            _ragService.OllamaClient.SelectedModel = model;
+            return Ok(new { result = "Accept", content = _ragService.OllamaClient.SelectedModel });
         }
     }
 }

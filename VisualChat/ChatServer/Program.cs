@@ -1,8 +1,10 @@
 using ChatServer;
+using Microsoft.AspNetCore.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<RAGService>();
+builder.Services.AddHostedService<RAGService>();
 
 // Notify event
 builder.Logging.ClearProviders();

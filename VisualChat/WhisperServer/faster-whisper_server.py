@@ -1,4 +1,3 @@
-from faster_whisper import WhisperModel
 import socket
 import datetime
 import sounddevice as sd
@@ -7,7 +6,8 @@ import scipy.io.wavfile as wav
 import time
 import uvicorn
 import os
-from fastapi import FastAPI, Request
+from faster_whisper import WhisperModel
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 

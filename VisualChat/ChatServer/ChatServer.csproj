@@ -4,11 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);CS8602,CS8604,CS8602</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Include="..\WhisperServer\faster-whisper_server.py" Link="faster-whisper_server.py" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ChromaDB.Client" Version="0.9.2" />
