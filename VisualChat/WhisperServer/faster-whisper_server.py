@@ -7,14 +7,19 @@ import scipy.io.wavfile as wav
 import time
 import uvicorn
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 app = FastAPI()
 
+class FilePathModel(BaseModel): filePath: str
+
 # Record audio
-@app.get('/faster-whisper/api/record')
-def recordAsync(file_path: str):
+@app.post('/faster-whisper/api/record')
+async def recordAsync(data: FilePathModel):
+    file_path = data.filePath
+
     SAMPLE_RATE = 44000
     THRESHOLD = 500
     SILENCE_DURATION = 1
@@ -23,6 +28,7 @@ def recordAsync(file_path: str):
     start_time = time.time()
     recoginazed_voice = False
 
+    print(file_path)
     print(f"{datetime.datetime.now()} Start recording.")
 
     while True:
@@ -61,35 +67,43 @@ def recordAsync(file_path: str):
 
 # Transcribe audio
 @app.post('/faster-whisper/api/transcribe')
-def transcribeAsync(file_path: str):
+async def transcribeAsync(data: FilePathModel):
+    file_path = data.filePath
+
     MODEL_SIZE = "small" # small, medium, large
 
     # os.environ["XDG_CACHE_HOME"] = "."
 
-    # model = WhisperModel(MODEL_SIZE, device="cuda", compute_type="float16")
-    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="float32")
+    # model = WhisperModel(MODEL_SIZE, device = "cuda", compute_type = "float16")
+    model = WhisperModel(MODEL_SIZE, device = "cpu", compute_type=  "float32")
 
     # Transcription of audio files
     print(f"{datetime.datetime.now()} Start transcription.")
-    segments, info = model.transcribe(file_path, beam_size=5)
+    segments, info = model.transcribe(file_path, beam_size = 5)
     print(f"{datetime.datetime.now()} Transcription completed.")
 
     # Transcription results
     message = ""
 
+    '''
     for segment in segments:
         print(f"{datetime.datetime.now()} [{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
         message += segment.text
-
+    
     return JSONResponse(content = {"content": message})
+    '''
+
+    segment_data = [{"start": segment.start, "end": segment.end, "text": segment.text} for segment in segments]
+    return JSONResponse(content = {"segments": segment_data})
 
 # Record and transcribe
-@app.get('/faster-whisper/api/whisper')
-def whisperAsync(file_path: str):
+@app.post('/faster-whisper/api/whisper')
+async def whisperAsync(data: FilePathModel):
+    file_path = data.filePath
 
-    """
+    '''
     Recording
-    """
+    '''
 
     SAMPLE_RATE = 44000
     THRESHOLD = 500
@@ -134,9 +148,9 @@ def whisperAsync(file_path: str):
     # Save the file
     wav.write(file_path, SAMPLE_RATE, audio_data)
     
-    """
+    '''
     Transcription
-    """
+    '''
     
     MODEL_SIZE = "small" # small, medium, large
 
@@ -153,11 +167,16 @@ def whisperAsync(file_path: str):
     # Transcription results
     message = ""
 
+    '''
     for segment in segments:
         print(f"{datetime.datetime.now()} [{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
         message += segment.text
-
+    
     return JSONResponse(content = {"content": message})
+    '''
+
+    segment_data = [{"start": segment.start, "end": segment.end, "text": segment.text} for segment in segments]
+    return JSONResponse(content = {"segments": segment_data})
 
 if __name__ == "__main__":
     print("Swagger UI: http://localhost:5023/docs")

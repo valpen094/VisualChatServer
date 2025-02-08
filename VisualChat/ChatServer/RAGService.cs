@@ -2,27 +2,27 @@
 using ChromaDB.Client;
 using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
-using System.Net.Sockets;
 
 namespace ChatServer
 {
     public class RAGService : Hub
     {
         private const string OllamaUri = "http://localhost:11434";
-        private const string ChromaUri = "http://localhost:8000/api/v1/";
-        public readonly Tuple<string, int> WhisperUri = new Tuple<string, int>("localhost", 5023);
+        private const string ChromaUri = "http://localhost:8000/api/v1";
+        private const string WhisperUri = "http://localhost:5023";
         private const string OllamaProcessName = "ollama";
         private const string ChromaProcessName = "chroma";
+        private const string WhisperProcessName = "faster-whisper";
 
         public OllamaApiClient _ollamaClient { get; private set; }
         public ChromaClient _chromaClient { get; private set; }
-        public TcpClient _whisperClient { get; set; }
-        public NetworkStream _stream { get; set; }
+        public HttpClient _whisperClient { get; private set; }
 
         public RAGService()
         {
             bool isRunnning;
 
+            // Start Olaama process
             try
             {
                 Ollama();
@@ -41,6 +41,7 @@ namespace ChatServer
                 // Start the Ollama process
             }
 
+            // Start ChromaDB process
             try
             {
                 Chroma();
@@ -59,14 +60,24 @@ namespace ChatServer
                 // Start the ChromaDB process
             }
 
+            // Start faster-whisper process
             try
             {
-                _whisperClient = new TcpClient(WhisperUri.Item1, WhisperUri.Item2);
-                _stream = _whisperClient.GetStream();
+                _whisperClient = new HttpClient { BaseAddress = new Uri(WhisperUri) };
             }
             catch (Exception e)
             {
                 Trace.WriteLine($"Error: {e.Message}");
+
+                // Check if the faster-whisper process is running
+                /*
+                isRunnning = Process.GetProcessesByName(WhisperProcessName).Length != 0;
+                if (!isRunnning)
+                {
+                    Trace.WriteLine("There is not faster-whisper process.");
+                }
+                */
+                // Start the faster-whisper process
             }
         }
 

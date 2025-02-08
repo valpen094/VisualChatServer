@@ -2,64 +2,21 @@
 using System.Diagnostics;
 using System.Text;
 using System.Net.Sockets;
+using System;
+using Microsoft.AspNetCore.SignalR;
+using System.Text.Json;
 
 namespace ChatServer.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class WhisperController(RAGService ragService) : ControllerBase
+    public class WhisperController : ControllerBase
     {
-        private readonly RAGService _ragService = ragService;
+        private readonly RAGService _ragService;
 
-        /// <summary>
-        /// Open the faster-whisper_server.
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet("open/{userId}")]
-        public IActionResult Open()
+        public WhisperController(RAGService ragService)
         {
-            string message = string.Empty;
-
-            try
-            {
-                _ragService._whisperClient = new TcpClient(_ragService.WhisperUri.Item1, _ragService.WhisperUri.Item2);
-                _ragService._stream = _ragService._whisperClient.GetStream();
-            }
-            catch (Exception e)
-            {
-                Trace.WriteLine($"Error: {e.Message}");
-            }
-
-            return Ok(new { result = "Accept", content = message });
-        }
-
-        /// <summary>
-        /// Close the faster-whisper_server.
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet("close/{userId}")]
-        public IActionResult Close()
-        {
-            string message = string.Empty;
-
-            try
-            {
-                // Send a message to the server.
-                byte[] data = Encoding.UTF8.GetBytes("close");
-                _ragService._stream.Write(data, 0, data.Length);
-                _ragService._whisperClient.Close();
-                _ragService._stream.Close();
-            }
-            catch (ObjectDisposedException)
-            {
-
-            }
-            catch (Exception e)
-            {
-                Trace.WriteLine($"Error: {e.Message}");
-            }
-
-            return Ok(new { result = "Accept", content = string.Empty });
+            _ragService = ragService;
         }
 
         /// <summary>
@@ -77,15 +34,24 @@ namespace ChatServer.Controllers
             {
                 try
                 {
+                    const string url = "faster-whisper/api/record";
+
+                    string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
+                    var jsonData = new { filePath };
+                    string jsonString = JsonSerializer.Serialize(jsonData);
+                    var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
                     // Send a message to the server.
-                    byte[] data = Encoding.UTF8.GetBytes("transcribe");
-                    _ragService._stream.Write(data, 0, data.Length);
+                    HttpResponseMessage response = await _ragService._whisperClient.PostAsync(url, content);
+
+                    var statusCode = response.StatusCode.ToString();
+                    int statusCodeValue = (int)response.StatusCode;
 
                     // Receive the response from the server.
-                    byte[] buffer = new byte[1024];
-                    int bytesRead = _ragService._stream.Read(buffer, 0, buffer.Length);
-                    message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    Trace.WriteLine("POST Response: " + message);
+                    message = await response.Content.ReadAsStringAsync();
+                    Trace.WriteLine($"{DateTime.Now.ToString()} POST Response: {message}");
+
+                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = statusCodeValue, status = statusCode, content = message });
                 }
                 catch (Exception ex)
                 {
@@ -95,6 +61,138 @@ namespace ChatServer.Controllers
             }).ConfigureAwait(false);
 
             return Ok(new { result = "Accept", content = string.Empty });
+        }
+
+        /// <summary>
+        /// Transcribe the voice and send the result to the user.
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        [HttpGet("transcribe/{userId}")]
+        public IActionResult TranscribeAsync(string userId)
+        {
+            string message = string.Empty;
+
+            // fire-and-forget
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    const string url = "faster-whisper/api/transcribe";
+
+                    string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
+                    var jsonData = new { filePath };
+                    string jsonString = JsonSerializer.Serialize(jsonData);
+                    var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+                    // Send a message to the server.
+                    HttpResponseMessage response = await _ragService._whisperClient.PostAsync(url, content);
+
+                    var statusCode = response.StatusCode.ToString();
+                    int statusCodeValue = (int)response.StatusCode;
+
+                    // Receive the response from the server.
+                    message = await response.Content.ReadAsStringAsync();
+                    Trace.WriteLine($"{DateTime.Now.ToString()} POST Response: {message}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = JsonSerializer.Deserialize<TranscriptionResult>(message);
+                        if (result != null)
+                        {
+                            foreach (var segment in result.segments)
+                            {
+                                Trace.WriteLine($"{DateTime.Now.ToString()} [{segment.start}s - {segment.end}s] {segment.text}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Trace.WriteLine($"{DateTime.Now.ToString()} Error: {response.StatusCode}");
+                    }
+
+                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/transcribe", errorcode = statusCodeValue, status = statusCode, content = message });
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine("Error: " + ex.Message);
+                }
+
+            }).ConfigureAwait(false);
+
+            return Ok(new { result = "Accept", content = string.Empty });
+        }
+
+        /// <summary>
+        /// Record and transcribe the voice and send the result to the user.
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        [HttpGet("whisper/{userId}")]
+        public IActionResult WhisperAsync(string userId)
+        {
+            string message = string.Empty;
+
+            // fire-and-forget
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    const string url = "faster-whisper/api/whisper";
+
+                    string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
+                    var jsonData = new { filePath };
+                    string jsonString = JsonSerializer.Serialize(jsonData);
+                    var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+                    // Send a message to the server.
+                    HttpResponseMessage response = await _ragService._whisperClient.PostAsync(url, content);
+
+                    var statusCode = response.StatusCode.ToString();
+                    int statusCodeValue = (int)response.StatusCode;
+
+                    // Receive the response from the server.
+                    message = await response.Content.ReadAsStringAsync();
+                    Trace.WriteLine($"{DateTime.Now.ToString()} POST Response: {message}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = JsonSerializer.Deserialize<TranscriptionResult>(message);
+                        if (result != null)
+                        {
+                            foreach (var segment in result.segments)
+                            {
+                                Trace.WriteLine($"{DateTime.Now.ToString()} [{segment.start}s - {segment.end}s] {segment.text}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Trace.WriteLine($"{DateTime.Now.ToString()} Error: {response.StatusCode}");
+                    }
+
+                    await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/whisper", errorcode = statusCodeValue, status = statusCode, content = message });
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine("Error: " + ex.Message);
+                }
+
+            }).ConfigureAwait(false);
+
+            return Ok(new { result = "Accept", content = string.Empty });
+        }
+
+        public class TranscriptionResult
+        {
+            public List<Segment> segments { get; set; }
+        }
+
+        public class Segment
+        {
+            public float start { get; set; }
+            public float end { get; set; }
+            public string text { get; set; }
         }
     }
 }
