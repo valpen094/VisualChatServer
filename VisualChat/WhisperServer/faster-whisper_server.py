@@ -5,13 +5,19 @@ import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
 import time
+import uvicorn
+import os
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-# Recording
-def record():
+app = FastAPI()
+
+# Record audio
+@app.get('/faster-whisper/api/record')
+def recordAsync(file_path: str):
     SAMPLE_RATE = 44000
     THRESHOLD = 500
     SILENCE_DURATION = 1
-    OUTPUT_FILE = "audio.wav"
 
     audio_data = []
     start_time = time.time()
@@ -47,14 +53,16 @@ def record():
             recoginazed_voice = True
 
     audio_data = np.concatenate(audio_data, axis = 0)
+    print(f"{datetime.datetime.now()}" + " " + file_path)
 
     # Save the file
-    wav.write(OUTPUT_FILE, SAMPLE_RATE, audio_data)
-    return OUTPUT_FILE
+    wav.write(file_path, SAMPLE_RATE, audio_data)
+    return JSONResponse(content = {"content": file_path})
 
-# Transcribe an audio file
-def transcribe(file_path):
-    MODEL_SIZE = "small"
+# Transcribe audio
+@app.post('/faster-whisper/api/transcribe')
+def transcribeAsync(file_path: str):
+    MODEL_SIZE = "small" # small, medium, large
 
     # os.environ["XDG_CACHE_HOME"] = "."
 
@@ -62,63 +70,95 @@ def transcribe(file_path):
     model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="float32")
 
     # Transcription of audio files
+    print(f"{datetime.datetime.now()} Start transcription.")
     segments, info = model.transcribe(file_path, beam_size=5)
+    print(f"{datetime.datetime.now()} Transcription completed.")
 
     # Transcription results
     message = ""
+
     for segment in segments:
         print(f"{datetime.datetime.now()} [{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
         message += segment.text
-        
-    return message
 
-# Start the server
-def serve():
-    HOST = "localhost"
-    PORT = 5023
+    return JSONResponse(content = {"content": message})
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen()
+# Record and transcribe
+@app.get('/faster-whisper/api/whisper')
+def whisperAsync(file_path: str):
 
-    print(f"{datetime.datetime.now()} Server listening on {HOST}:{PORT}")
+    """
+    Recording
+    """
 
-    client_socket, addr = server_socket.accept()
-    print(f"{datetime.datetime.now()} Connected by {addr}")
+    SAMPLE_RATE = 44000
+    THRESHOLD = 500
+    SILENCE_DURATION = 1
+
+    audio_data = []
+    start_time = time.time()
+    recoginazed_voice = False
+
+    print(f"{datetime.datetime.now()} Start recording.")
 
     while True:
-        try:
-            print(f"{datetime.datetime.now()} Waiting to receive...")
+        # Get audio every 100ms
+        chunk = sd.rec(int(SAMPLE_RATE * 0.1), samplerate = SAMPLE_RATE, channels = 1, dtype = np.int16)
+        sd.wait()
+    
+        # Calculating volume
+        volume = np.abs(chunk).mean()
 
-            # Receive from client
-            data = client_socket.recv(1024).decode("utf-8")
-            if not data:
-                continue
-        
-            print(f"{datetime.datetime.now()} Received from client: {data}")
+        # Save a data (After initial recognition)
+        if recoginazed_voice:
+            audio_data.append(chunk)
 
-            if data.strip().lower() == "transcribe":
-                # Recording
-                audio_file = record()
+        # Silence detection
+        if volume < THRESHOLD:
+            if time.time() - start_time > SILENCE_DURATION:
+                if recoginazed_voice: # If there is no sound after recording starts, the condition will not be met.
+                    print(f"{datetime.datetime.now()} Stop recording.")
+                    break
 
-                # Convert voice data to text  
-                response = transcribe(audio_file)
+        else:
+            # Save a data (Initial recognition)
+            if recoginazed_voice is False:
+                audio_data.append(chunk)
 
-                # Send a response data
-                client_socket.sendall(response.encode("utf-8"))
+            start_time = time.time()
+            recoginazed_voice = True
 
-            # Terminate connection
-            elif data.strip().lower() == "close":
-                print(f"{datetime.datetime.now()} Received close command. Shutting down server.")
-                break
+    audio_data = np.concatenate(audio_data, axis = 0)
+    print(f"{datetime.datetime.now()}" + " " + file_path)
 
-        except Exception as e:
-            print(f"{datetime.datetime.now()} Error: {e}")
+    # Save the file
+    wav.write(file_path, SAMPLE_RATE, audio_data)
+    
+    """
+    Transcription
+    """
+    
+    MODEL_SIZE = "small" # small, medium, large
 
-    client_socket.close()
-    server_socket.close()
-    print(f"{datetime.datetime.now()} Server closed.")
+    # os.environ["XDG_CACHE_HOME"] = "."
+
+    # model = WhisperModel(MODEL_SIZE, device="cuda", compute_type="float16")
+    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="float32")
+
+    # Transcription of audio file
+    print(f"{datetime.datetime.now()} Start transcription.")
+    segments, info = model.transcribe(file_path, beam_size=5)
+    print(f"{datetime.datetime.now()} Transcription completed.")
+
+    # Transcription results
+    message = ""
+
+    for segment in segments:
+        print(f"{datetime.datetime.now()} [{segment.start:.2f}s - {segment.end:.2f}s] {segment.text}")
+        message += segment.text
+
+    return JSONResponse(content = {"content": message})
 
 if __name__ == "__main__":
-    while True:
-        serve()
+    print("Swagger UI: http://localhost:5023/docs")
+    uvicorn.run(app, host = "localhost", port = 5023)
