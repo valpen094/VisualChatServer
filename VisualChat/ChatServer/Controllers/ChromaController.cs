@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using ChromaDB.Client;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
 
@@ -24,9 +25,22 @@ namespace ChatServer.Controllers
 
                 try
                 {
-                    // Query the database
                     Debug.WriteLine($"{DateTime.Now} Start query.");
-                    var queryData = await _ragService.ChromaCollectionClient.Query([new(_ragService.QueryEmbedding)]);
+
+                    // Create where condition
+                    ChromaWhereOperator whereCondition = null;
+
+                    // Create whereDocument condition
+                    ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("example");
+
+                    // Query the database
+                    var queryData = await _ragService.ChromaCollectionClient.Query(
+                        queryEmbeddings: [new(_ragService.QueryEmbedding)],
+                        nResults: 10,
+                        whereCondition
+                    // where: new ("key", "$in", "values")
+                    );
+
                     Debug.WriteLine($"{DateTime.Now} End query.");
 
                     foreach (var item in queryData)
