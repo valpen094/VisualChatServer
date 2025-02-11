@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35707.178
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VisualChat", "VisualChat\VisualChat.csproj", "{1D5D6530-45F5-474B-BD60-5B1072F64285}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatServer", "ChatServer\ChatServer.csproj", "{2D7D8F2C-11FD-4BD6-A185-4F9F1FF6EF25}"
 EndProject
 Global
@@ -13,10 +11,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1D5D6530-45F5-474B-BD60-5B1072F64285}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1D5D6530-45F5-474B-BD60-5B1072F64285}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1D5D6530-45F5-474B-BD60-5B1072F64285}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1D5D6530-45F5-474B-BD60-5B1072F64285}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2D7D8F2C-11FD-4BD6-A185-4F9F1FF6EF25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2D7D8F2C-11FD-4BD6-A185-4F9F1FF6EF25}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2D7D8F2C-11FD-4BD6-A185-4F9F1FF6EF25}.Release|Any CPU.ActiveCfg = Release|Any CPU
